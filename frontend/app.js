@@ -1,18 +1,6 @@
-// Моковые данные
-const patients = [
-    { id: 'PAT-001', name: 'Иванов Иван Иванович', dob: '1985-04-12', phone: '+7 (999) 123-45-67' },
-    { id: 'PAT-002', name: 'Смирнова Анна Сергеевна', dob: '1990-08-25', phone: '+7 (999) 987-65-43' },
-    { id: 'PAT-003', name: 'Петров Петр Васильевич', dob: '1975-11-03', phone: '+7 (999) 555-22-33' }
-];
-
-const appointments = [
-    { time: '09:00', doctor: 'Терапевт', patient: 'Иванов И.И.', status: 'booked' },
-    { time: '10:00', doctor: 'Терапевт', patient: null, status: 'free' },
-    { time: '11:00', doctor: 'Терапевт', patient: 'Петров П.В.', status: 'booked' },
-    { time: '09:00', doctor: 'Хирург', patient: null, status: 'free' },
-    { time: '10:00', doctor: 'Хирург', patient: 'Смирнова А.С.', status: 'booked' },
-    { time: '11:00', doctor: 'Хирург', patient: null, status: 'free' }
-];
+let patients = [];
+let appointments = [];
+let doctors = [];
 
 const icd10 = [
     { code: 'J06.9', name: 'Острая инфекция верхних дыхательных путей неуточненная' },
@@ -23,14 +11,34 @@ const icd10 = [
 ];
 
 // Инициализация UI
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initNavigation();
-    renderPatients();
-    renderCalendar();
-    renderDashboardList();
     initModals();
     initICD10();
+    
+    await loadData();
 });
+
+async function loadData() {
+    try {
+        const [patientsRes, doctorsRes, appointmentsRes] = await Promise.all([
+            fetch('/api/patients'),
+            fetch('/api/doctors'),
+            fetch('/api/appointments')
+        ]);
+        
+        if (patientsRes.ok) patients = await patientsRes.json();
+        if (doctorsRes.ok) doctors = await doctorsRes.json();
+        if (appointmentsRes.ok) appointments = await appointmentsRes.json();
+        
+        renderPatients();
+        renderCalendar();
+        renderDashboardList();
+    } catch (error) {
+        console.error('Ошибка загрузки данных:', error);
+        console.warn('Продолжаем с пустыми данными (возможно бэкенд недоступен).');
+    }
+}
 
 function initNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
@@ -86,19 +94,37 @@ function initModals() {
         if (e.target === modal) modal.classList.remove('active');
     });
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
         const newPatient = {
-            id: 'PAT-' + String(patients.length + 1).padStart(3, '0'),
             name: document.getElementById('p-name').value,
             dob: document.getElementById('p-dob').value,
             phone: document.getElementById('p-phone').value,
             allergies: document.getElementById('p-allergies').value
         };
-        patients.push(newPatient);
-        renderPatients();
-        modal.classList.remove('active');
-        form.reset();
+        
+        try {
+            const res = await fetch('/api/patients', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newPatient)
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                patients.unshift(data.patient); // add to top
+                renderPatients();
+                modal.classList.remove('active');
+                form.reset();
+            } else {
+                const err = await res.json();
+                alert('Ошибка: ' + err.error);
+            }
+        } catch (error) {
+            console.error('Ошибка сохранения:', error);
+            alert('Ошибка сети при сохранении пациента');
+        }
     });
 
     // EMR Back button
@@ -151,37 +177,44 @@ function openEMR(patientId) {
 
 function renderCalendar() {
     const grid = document.getElementById('calendar-grid');
-    grid.innerHTML = `
-        <div></div>
-        <div style="font-weight: 600; color: var(--text-muted); text-align: center;">Терапевт</div>
-        <div style="font-weight: 600; color: var(--text-muted); text-align: center;">Хирург</div>
-        <div style="font-weight: 600; color: var(--text-muted); text-align: center;">Невролог</div>
-    `;
+    if (!doctors.length) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; padding: 2rem; text-align: center; color: var(--text-muted);">Врачи не найдены</div>';
+        return;
+    }
+    
+    grid.style.gridTemplateColumns = `80px repeat(${doctors.length}, 1fr)`;
+    
+    let html = `<div></div>`;
+    doctors.forEach(doc => {
+        html += `<div style="font-weight: 600; color: var(--text-muted); text-align: center;">${doc.specialization}<br><small style="font-size:0.7em;font-weight:400">${doc.name}</small></div>`;
+    });
+    grid.innerHTML = html;
 
-    const times = ['09:00', '10:00', '11:00', '12:00'];
+    const times = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
     
     times.forEach(time => {
         grid.innerHTML += `<div class="cal-time">${time}</div>`;
         
-        // 3 doctors columns
-        for(let i = 0; i < 3; i++) {
-            const doctors = ['Терапевт', 'Хирург', 'Невролог'];
-            const currentDoc = doctors[i];
+        doctors.forEach(doc => {
+            const apt = appointments.find(a => a.time === time && a.doctor === doc.specialization);
             
-            const apt = appointments.find(a => a.time === time && a.doctor === currentDoc);
-            
-            if (apt && apt.status === 'booked') {
+            if (apt && apt.status === 'scheduled') {
                 grid.innerHTML += `<div class="cal-slot booked">${apt.patient}</div>`;
             } else {
-                grid.innerHTML += `<div class="cal-slot" onclick="alert('Запись на ${time} к врачу: ${currentDoc}')">+ Свободно</div>`;
+                grid.innerHTML += `<div class="cal-slot" onclick="alert('Запись на ${time} к врачу: ${doc.specialization} пока не реализована на UI')">+ Свободно</div>`;
             }
-        }
+        });
     });
 }
 
 function renderDashboardList() {
     const container = document.getElementById('dashboard-appointments-list');
-    const booked = appointments.filter(a => a.status === 'booked');
+    const booked = appointments.filter(a => a.status === 'scheduled');
+    
+    if (booked.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); padding: 1rem;">Нет запланированных приемов</p>';
+        return;
+    }
     
     container.innerHTML = booked.map(b => `
         <div style="display: flex; justify-content: space-between; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem; background: var(--surface);">
