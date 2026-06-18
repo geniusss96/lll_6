@@ -36,7 +36,10 @@ async function loadData() {
         renderDashboardList();
     } catch (error) {
         console.error('Ошибка загрузки данных:', error);
-        console.warn('Продолжаем с пустыми данными (возможно бэкенд недоступен).');
+        const errMessage = '<div style="grid-column: 1/-1; padding: 2rem; text-align: center; color: var(--danger); font-weight: 500;">Ошибка подключения к серверу или базе данных. Проверьте логи сервера.</div>';
+        document.getElementById('calendar-grid').innerHTML = errMessage;
+        document.getElementById('dashboard-appointments-list').innerHTML = errMessage;
+        document.getElementById('patients-table-body').innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 2rem;">Ошибка загрузки базы данных</td></tr>`;
     }
 }
 
