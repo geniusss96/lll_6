@@ -299,8 +299,23 @@ async function initDB() {
                 await client.query(docQuery, [doc1, doc2, doc3]);
                 console.log('Инициализация БД завершена успешно!');
             } else {
-                console.log('База данных готова к работе (таблицы существуют).');
+                console.log('Таблицы существуют.');
             }
+
+            // Проверяем наличие пациентов
+            const patCheck = await client.query('SELECT COUNT(*) as cnt FROM patients');
+            if (parseInt(patCheck.rows[0].cnt) === 0) {
+                console.log('Пациентов нет. Добавляем 20 тестовых пациентов...');
+                for(let i=1; i<=20; i++) {
+                    const userQuery = `INSERT INTO users (role, name, email, phone) VALUES ('patient', 'Тестовый Пациент ${i}', 'pat${i}@mail.ru', '+7999000${i.toString().padStart(4, '0')}') RETURNING id;`;
+                    const userRes = await client.query(userQuery);
+                    const patientQuery = `INSERT INTO patients (user_id, date_of_birth) VALUES ($1, '1980-01-01')`;
+                    await client.query(patientQuery, [userRes.rows[0].id]);
+                }
+                console.log('Тестовые пациенты успешно добавлены!');
+            }
+            
+            console.log('База данных готова к работе.');
         } finally {
             client.release();
         }
