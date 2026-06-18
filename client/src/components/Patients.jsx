@@ -1,9 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function Patients({ patients, setPatients, activeTab, setActiveTab }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [formData, setFormData] = useState({ name: '', dob: '', phone: '', allergies: '' });
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // EMR state
+  const [emrHistory, setEmrHistory] = useState([]);
+  const [emrForm, setEmrForm] = useState({ complaints: '', diagnosis: '', prescriptions: '', notes: '' });
+  const [isSavingEmr, setIsSavingEmr] = useState(false);
+
+  // Load EMR history when patient is selected
+  useEffect(() => {
+    if (activeTab === 'emr' && selectedPatient) {
+      fetch(`/api/medical_records/${selectedPatient.id}`)
+        .then(res => res.json())
+        .then(data => setEmrHistory(data))
+        .catch(err => console.error('Ошибка загрузки истории ЭМК', err));
+    }
+  }, [activeTab, selectedPatient]);
 
   const handleAddPatient = async (e) => {
     e.preventDefault();
@@ -27,10 +45,54 @@ function Patients({ patients, setPatients, activeTab, setActiveTab }) {
     }
   };
 
+  const handleSaveEmr = async (e) => {
+    e.preventDefault();
+    if (!emrForm.complaints || !emrForm.diagnosis) {
+      alert('Пожалуйста, заполните обязательные поля (Жалобы и Диагноз)');
+      return;
+    }
+    
+    setIsSavingEmr(true);
+    try {
+      const payload = {
+        patient_id: selectedPatient.id,
+        doctor_id: null, // Идеально было бы брать из сессии/контекста врача
+        ...emrForm
+      };
+
+      const res = await fetch('/api/medical_records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setEmrHistory([data.record, ...emrHistory]);
+        setEmrForm({ complaints: '', diagnosis: '', prescriptions: '', notes: '' });
+      } else {
+        const err = await res.json();
+        alert('Ошибка сохранения: ' + err.error);
+      }
+    } catch (err) {
+      alert('Ошибка сети при сохранении записи');
+    } finally {
+      setIsSavingEmr(false);
+    }
+  };
+
   const openEMR = (patient) => {
     setSelectedPatient(patient);
     setActiveTab('emr');
   };
+
+  // Filter patients based on search query
+  const filteredPatients = patients.filter(p => {
+    const q = searchQuery.toLowerCase();
+    return p.name.toLowerCase().includes(q) || 
+           (p.phone && p.phone.includes(q)) || 
+           p.id.toLowerCase().includes(q);
+  });
 
   if (activeTab === 'emr' && selectedPatient) {
     const age = new Date().getFullYear() - new Date(selectedPatient.dob).getFullYear();
@@ -51,33 +113,72 @@ function Patients({ patients, setPatients, activeTab, setActiveTab }) {
             <div className="emr-card">
               <h3>История приемов</h3>
               <div className="timeline">
-                <div className="timeline-item">
-                  <div className="timeline-date">10 Июня 2026</div>
-                  <div className="timeline-content">Прием терапевта. Жалобы на общую слабость.</div>
-                </div>
+                {emrHistory.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Нет предыдущих записей</p>
+                ) : (
+                  emrHistory.map(record => (
+                    <div className="timeline-item" key={record.id}>
+                      <div className="timeline-date">{new Date(record.record_date).toLocaleDateString('ru-RU')}</div>
+                      <div className="timeline-content">
+                        <strong>Врач:</strong> {record.doctor_spec || 'Врач'} <br/>
+                        <strong>Жалобы:</strong> {record.complaints} <br/>
+                        <strong>Диагноз:</strong> {record.diagnosis}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
           <div className="emr-main">
             <div className="emr-card">
               <h3>Новый осмотр</h3>
-              <form>
+              <form onSubmit={handleSaveEmr}>
                 <div className="form-group">
-                  <label>Жалобы</label>
-                  <textarea rows="3"></textarea>
+                  <label>Жалобы *</label>
+                  <textarea 
+                    rows="3" 
+                    value={emrForm.complaints} 
+                    onChange={e => setEmrForm({...emrForm, complaints: e.target.value})}
+                    required
+                  ></textarea>
                 </div>
                 <div className="form-group">
-                  <label>Диагноз по МКБ-10</label>
-                  <select style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <label>Диагноз по МКБ-10 *</label>
+                  <select 
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}
+                    value={emrForm.diagnosis}
+                    onChange={e => setEmrForm({...emrForm, diagnosis: e.target.value})}
+                    required
+                  >
                     <option value="">Выберите диагноз...</option>
                     <option value="J06.9">J06.9 - Острая инфекция верхних дыхательных путей</option>
+                    <option value="I10">I10 - Эссенциальная [первичная] гипертензия</option>
+                    <option value="E11.9">E11.9 - Инсулинонезависимый сахарный диабет</option>
+                    <option value="M54.5">M54.5 - Боль внизу спины</option>
+                    <option value="K29.7">K29.7 - Гастрит неуточненный</option>
+                    <option value="Z00.0">Z00.0 - Общий медицинский осмотр</option>
                   </select>
                 </div>
                 <div className="form-group">
                   <label>Назначения</label>
-                  <textarea rows="3"></textarea>
+                  <textarea 
+                    rows="3"
+                    value={emrForm.prescriptions}
+                    onChange={e => setEmrForm({...emrForm, prescriptions: e.target.value})}
+                  ></textarea>
                 </div>
-                <button type="button" className="btn btn-primary">Сохранить запись</button>
+                <div className="form-group">
+                  <label>Дополнительные заметки</label>
+                  <textarea 
+                    rows="2"
+                    value={emrForm.notes}
+                    onChange={e => setEmrForm({...emrForm, notes: e.target.value})}
+                  ></textarea>
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={isSavingEmr}>
+                  {isSavingEmr ? 'Сохранение...' : 'Сохранить запись'}
+                </button>
               </form>
             </div>
           </div>
@@ -89,7 +190,13 @@ function Patients({ patients, setPatients, activeTab, setActiveTab }) {
   return (
     <div>
       <div className="patients-header">
-        <input type="text" className="search-input" placeholder="Поиск по ФИО или ID..." />
+        <input 
+          type="text" 
+          className="search-input" 
+          placeholder="Поиск по ФИО, ID или тел..." 
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
         <div className="actions">
           <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>+ Новый пациент</button>
         </div>
@@ -106,7 +213,7 @@ function Patients({ patients, setPatients, activeTab, setActiveTab }) {
           </tr>
         </thead>
         <tbody>
-          {patients.map(p => (
+          {filteredPatients.map(p => (
             <tr key={p.id}>
               <td><strong>{p.id.substring(0,8)}</strong></td>
               <td>{p.name}</td>
@@ -117,8 +224,8 @@ function Patients({ patients, setPatients, activeTab, setActiveTab }) {
               </td>
             </tr>
           ))}
-          {patients.length === 0 && (
-            <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>Пациентов не найдено</td></tr>
+          {filteredPatients.length === 0 && (
+            <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Пациентов не найдено</td></tr>
           )}
         </tbody>
       </table>

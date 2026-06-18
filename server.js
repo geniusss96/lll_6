@@ -186,6 +186,70 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
+// API Эндпоинты для медицинских записей (ЭМК)
+app.get('/api/medical_records/:patient_id', async (req, res) => {
+    try {
+        const { patient_id } = req.params;
+        const query = `
+            SELECT mr.id, mr.record_date, mr.complaints, mr.anamnesis, mr.diagnosis, mr.treatment_plan, mr.prescriptions, mr.notes,
+                   d.specialization as doctor_spec, u.name as doctor_name
+            FROM medical_records mr
+            LEFT JOIN doctors d ON mr.doctor_id = d.id
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE mr.patient_id = $1
+            ORDER BY mr.record_date DESC
+        `;
+        const result = await pool.query(query, [patient_id]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Ошибка получения ЭМК:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    }
+});
+
+app.post('/api/medical_records', async (req, res) => {
+    const { patient_id, doctor_id, complaints, diagnosis, prescriptions, notes } = req.body;
+    
+    if (!patient_id || !complaints || !diagnosis) {
+        return res.status(400).json({ error: 'Пациент, жалобы и диагноз обязательны' });
+    }
+
+    try {
+        const query = `
+            INSERT INTO medical_records (patient_id, doctor_id, complaints, diagnosis, prescriptions, notes)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *;
+        `;
+        const result = await pool.query(query, [patient_id, doctor_id || null, complaints, diagnosis, prescriptions, notes]);
+        
+        // Получаем имя врача для возврата
+        let doctorName = 'Неизвестный врач';
+        let doctorSpec = '';
+        if (doctor_id) {
+            const docQuery = `SELECT u.name, d.specialization FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.id = $1`;
+            const docRes = await pool.query(docQuery, [doctor_id]);
+            if (docRes.rows.length > 0) {
+                doctorName = docRes.rows[0].name;
+                doctorSpec = docRes.rows[0].specialization;
+            }
+        }
+        
+        const newRecord = {
+            ...result.rows[0],
+            doctor_name: doctorName,
+            doctor_spec: doctorSpec
+        };
+
+        res.status(201).json({
+            message: 'Запись ЭМК успешно создана',
+            record: newRecord
+        });
+    } catch (error) {
+        console.error('Ошибка создания ЭМК:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    }
+});
+
 // Функция для автоматической инициализации базы данных
 async function initDB() {
     try {

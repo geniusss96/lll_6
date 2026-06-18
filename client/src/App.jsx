@@ -83,7 +83,7 @@ function App() {
             </div>
             
             <div className={`page-view ${activeTab === 'calendar' ? 'active' : ''}`}>
-              <Calendar doctors={doctors} appointments={appointments} />
+              <Calendar doctors={doctors} appointments={appointments} patients={patients} setAppointments={setAppointments} />
             </div>
             
             <div className={`page-view ${activeTab === 'patients' || activeTab === 'emr' ? 'active' : ''}`}>
