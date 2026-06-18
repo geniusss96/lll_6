@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // Раздача статических файлов фронтенда
-app.use(express.static(path.join(__dirname, 'frontend')));
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 // Database connection
 // Укажите свои данные для подключения, либо используйте .env
@@ -247,7 +247,7 @@ async function initDB() {
 
 // Fallback route для отдачи index.html для всех остальных запросов (SPA)
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+    res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
 // Запуск сервера
