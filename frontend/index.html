@@ -101,7 +101,90 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- EMR Page View -->
+            <div id="emr" class="page-view">
+                <div class="emr-header">
+                    <button class="btn" id="btn-back-patients">← К списку пациентов</button>
+                    <h2 id="emr-patient-name">Карта пациента</h2>
+                </div>
+                
+                <div class="emr-grid">
+                    <div class="emr-sidebar">
+                        <div class="emr-card">
+                            <h3>Информация</h3>
+                            <p><strong>ID:</strong> <span id="emr-id"></span></p>
+                            <p><strong>Возраст:</strong> <span id="emr-age"></span></p>
+                            <p><strong>Аллергии:</strong> <span id="emr-allergies"></span></p>
+                        </div>
+                        <div class="emr-card" style="margin-top: 1rem;">
+                            <h3>История приемов</h3>
+                            <div class="timeline" id="emr-timeline">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="emr-main">
+                        <div class="emr-card">
+                            <h3>Новый осмотр</h3>
+                            <form id="emr-form">
+                                <div class="form-group">
+                                    <label>Жалобы</label>
+                                    <textarea rows="3" placeholder="Опишите жалобы пациента..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Анамнез</label>
+                                    <textarea rows="3" placeholder="Анамнез заболевания..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Диагноз (МКБ-10)</label>
+                                    <select id="icd-select" class="search-input" style="width: 100%;">
+                                        <!-- Filled by JS -->
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Назначения</label>
+                                    <textarea rows="4" placeholder="План лечения и препараты..."></textarea>
+                                </div>
+                                <button type="button" class="btn btn-primary" onclick="alert('Данные осмотра сохранены!')">Сохранить осмотр</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
+
+        <!-- Modals -->
+        <div class="modal-overlay" id="patient-modal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Новый пациент</h2>
+                    <button class="close-btn" id="close-patient-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="new-patient-form">
+                        <div class="form-group">
+                            <label>ФИО</label>
+                            <input type="text" id="p-name" class="search-input" style="width: 100%;" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Дата рождения</label>
+                            <input type="date" id="p-dob" class="search-input" style="width: 100%;" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input type="tel" id="p-phone" class="search-input" style="width: 100%;" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Аллергии</label>
+                            <input type="text" id="p-allergies" class="search-input" style="width: 100%;">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Сохранить пациента</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>
