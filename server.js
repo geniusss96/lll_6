@@ -186,6 +186,51 @@ app.get('/api/appointments', async (req, res) => {
     }
 });
 
+// ==========================================
+// Эндпоинт для автоматической инициализации БД
+// ==========================================
+app.get('/api/init', async (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Читаем и выполняем schema.sql
+        const schemaPath = path.join(__dirname, 'schema.sql');
+        const schema = fs.readFileSync(schemaPath, 'utf8');
+        await pool.query(schema);
+        
+        // Заполняем тестовыми данными (врачами)
+        const userQuery = `
+            INSERT INTO Users (role, name, email, phone, password_hash)
+            VALUES 
+            ('admin', 'Системный Администратор', 'admin@clinicos.ru', '+79990000000', 'hashed_password'),
+            ('doctor', 'Иванов Иван (Терапевт)', 'ivanov@clinicos.ru', '+79991111111', 'hashed_password'),
+            ('doctor', 'Смирнова Анна (Хирург)', 'smirnova@clinicos.ru', '+79992222222', 'hashed_password'),
+            ('doctor', 'Петров Петр (Невролог)', 'petrov@clinicos.ru', '+79993333333', 'hashed_password')
+            RETURNING id, name;
+        `;
+        const users = await pool.query(userQuery);
+
+        const docQuery = `
+            INSERT INTO Doctors (user_id, specialization, room_number, experience_years)
+            VALUES 
+            ($1, 'Терапевт', '101', 10),
+            ($2, 'Хирург', '205', 8),
+            ($3, 'Невролог', '302', 15)
+        `;
+        const doc1 = users.rows.find(u => u.name.includes('Терапевт')).id;
+        const doc2 = users.rows.find(u => u.name.includes('Хирург')).id;
+        const doc3 = users.rows.find(u => u.name.includes('Невролог')).id;
+
+        await pool.query(docQuery, [doc1, doc2, doc3]);
+
+        res.send('<h1>База данных успешно инициализирована! Таблицы и врачи созданы.</h1><p><a href="/">Вернуться на сайт</a></p>');
+    } catch (error) {
+        console.error('Ошибка инициализации БД:', error);
+        res.status(500).send(`<h1>Ошибка инициализации БД:</h1><pre>${error.message}</pre><p>Возможно, таблицы уже существуют?</p>`);
+    }
+});
+
 // Fallback route для отдачи index.html для всех остальных запросов (SPA)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
